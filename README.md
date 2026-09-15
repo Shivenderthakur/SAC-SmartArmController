@@ -75,8 +75,8 @@ Two ready-to-flash receivers serve both:
 - [SAC-Firmware/](SAC-Firmware/) — PlatformIO. The ESP32 runs its own hotspot,
   `SAC-Arm`, and is always at **192.168.4.1**, so there is no router to share
   and no address to look up. Join the hotspot, type `192.168.4.1` into the app's
-  **Arm** screen, and every command is printed to the serial monitor. It does
-  not drive the servos yet.
+  **Arm** screen. It receives commands but does not drive the servos yet; its
+  serial log is off unless built with `SAC_LOG=1`.
 - [esp32/](esp32/) — Arduino IDE. Joins your WiFi and drives the servos. Set
   your WiFi credentials and servo pins, flash, and type the IP it prints into
   the app's **Arm** screen.
@@ -187,7 +187,7 @@ hardware. Details, including why half resolution costs no accuracy, are in the
 | `lib/screens/` | Track, Control, Arm, Theme. |
 | `lib/widgets/` | Scrubbable nav bar, overlay painter, gradient slider. |
 | `esp32/` | Arduino sketch for the WiFi receiver that drives the servos, and its wiring notes. |
-| `SAC-Firmware/` | PlatformIO firmware: a fixed-address hotspot receiver that logs commands. |
+| `SAC-Firmware/` | PlatformIO firmware: a fixed-address hotspot receiver, servo output still to come. |
 | `android/app/src/main/kotlin/.../MainActivity.kt` | MediaPipe bridge and the NV21 conversion. |
 | `android/app/build.gradle.kts` | MediaPipe dependency, `noCompress`, release config. |
 | `android/build.gradle.kts` | The AGP 9 fix for `camera_android_camerax`. |
@@ -214,7 +214,7 @@ someone else:
 
 - Acknowledgements from the ESP32, so the app can tell a delivered command from
   a servo that never moved
-- Servo output in `SAC-Firmware/`, which only prints commands so far
+- Servo output in `SAC-Firmware/`, which only receives commands so far
 - Servo smoothing — raw landmarks are jittery frame to frame
 - Calibration for the mapping constants, which are currently the Python's
 - Optional full-native CameraX pipeline to get past the 26 fps channel ceiling

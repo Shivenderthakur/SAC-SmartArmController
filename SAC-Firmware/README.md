@@ -3,9 +3,10 @@
 PlatformIO firmware that turns the ESP32 into its own WiFi hotspot at an address
 that never changes, so the phone never has to go looking for it.
 
-For now it **prints every command the app sends** to the serial monitor and does
-not drive the servos — that comes next. The Arduino sketch in [esp32/](../esp32/)
-is the one that moves servos over your home WiFi.
+For now it **receives the app's commands but does not drive the servos** — that
+comes next. Serial output is off by default; [turn it on](#serial-log) to watch
+every command arrive. The Arduino sketch in [esp32/](../esp32/) is the one that
+moves servos over your home WiFi.
 
 ## Flash
 
@@ -15,7 +16,6 @@ extra libraries.
 ```bash
 cd SAC-Firmware
 pio run -t upload
-pio device monitor          # 115200
 ```
 
 On Linux, `Permission denied: '/dev/ttyUSB0'` means your user is not in the
@@ -23,15 +23,6 @@ On Linux, `Permission denied: '/dev/ttyUSB0'` means your user is not in the
 
 ```bash
 sudo usermod -aG dialout $USER      # then log out and back in
-```
-
-On boot it prints:
-
-```
-hotspot  SAC-Arm  password sacarm123
-address  192.168.4.1   <- enter this on the app's Arm screen
-socket   192.168.4.1:3333
-http     http://192.168.4.1/servo?cmd=...
 ```
 
 ## Connect the app
@@ -43,11 +34,36 @@ http     http://192.168.4.1/servo?cmd=...
 The board pins itself to `192.168.4.1` before the hotspot starts, so the address
 is the same on every boot and every phone.
 
+Opening `http://192.168.4.1/` in a browser shows the latest angles, the command
+and heartbeat counts, and how many devices are on the hotspot — the quickest
+check that the board is up, with or without the serial log.
+
 The hotspot has no internet. Some Android phones then keep routing traffic over
 mobile data and the app reports *unreachable* — turn mobile data off, or choose
 to stay connected when Android warns that the network has no internet.
 
-## Serial output
+## Serial log
+
+Every serial call goes through `LOGF`, which is compiled out unless `SAC_LOG` is
+set, so a normal build keeps the UART quiet. To watch the board, build with the
+flag and open the monitor:
+
+```bash
+PLATFORMIO_BUILD_FLAGS="-D SAC_LOG=1" pio run -t upload
+pio device monitor          # 115200
+```
+
+A plain `pio run -t upload` afterwards silences it again. With the log on, boot
+prints:
+
+```
+hotspot  SAC-Arm  password sacarm123
+address  192.168.4.1   <- enter this on the app's Arm screen
+socket   192.168.4.1:3333
+http     http://192.168.4.1/servo?cmd=...
+```
+
+and then, as the phone joins and the app streams:
 
 ```
 [hotspot] device joined 3c:2e:ff:12:34:56
@@ -58,9 +74,7 @@ to stay connected when Android warns that the network has no internet.
 ```
 
 A channel that has not been sent yet shows `-1`. The app's `?;` heartbeat is
-counted but not printed. Opening `http://192.168.4.1/` in a browser shows the
-latest angles, the command and heartbeat counts, and how many devices are on
-the hotspot.
+counted but not printed.
 
 ## Protocol
 
@@ -94,4 +108,4 @@ cp include/secrets.example.h include/secrets.h    # git-ignored
 ```
 
 Edit it and flash again. The password must be 8–63 characters, or the hotspot
-refuses to start and the serial monitor says so.
+refuses to start (with `SAC_LOG=1`, the serial monitor says so).
