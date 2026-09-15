@@ -26,7 +26,8 @@ Everything else is a topic branch that lives until it merges.
 
 [Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`
 in the subject, imperative mood, no trailing period, under about 72 characters.
-Scope is optional and names the area — `android`, `app`, `ui`, `gradle`.
+Scope is optional and names the area — `android`, `app`, `ui`, `gradle`,
+`esp32`, `sac-firmware`.
 
 The body matters more than the subject. Explain **why**, and put the evidence in:
 the error message you were chasing, the before and after numbers, the thing you
@@ -63,6 +64,12 @@ flutter build apk --release
 CI runs both on every push with Flutter **3.47.4**. Use the same version locally:
 a newer analyzer finds infos an older one did not, and `flutter analyze` fails
 on infos too.
+
+If you touched `SAC-Firmware/`, build it as well — CI does not:
+
+```bash
+pio run -d SAC-Firmware
+```
 
 A release build compiling is **not** proof it works. This project has already
 shipped two bugs that built perfectly and failed only at run time — see

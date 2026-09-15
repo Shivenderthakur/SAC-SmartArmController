@@ -2,6 +2,9 @@
 
 The phone does the vision; this just moves servos.
 
+For a board that runs its own hotspot at a fixed `192.168.4.1` instead of
+joining your WiFi, see [SAC-Firmware/](../SAC-Firmware/).
+
 ## Flashing
 
 1. Arduino IDE, ESP32 board support installed.
