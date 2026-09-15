@@ -6,7 +6,8 @@ reach and close your fist; four servo angles come out the other side.
 It is an Android port of a desktop Python controller that used OpenCV and
 MediaPipe Hands over a webcam. The vision runs **entirely on the phone** — the
 hand model ships inside the APK and nothing is uploaded anywhere. The only thing
-that leaves the device is servo angles, to one ESP32 on your own WiFi.
+that leaves the device is servo angles, to one ESP32 on a local network — your
+WiFi, or the hotspot the ESP32 runs itself.
 
 ```
       camera frame                          [ 115, 95, 108, 60 ]
@@ -20,7 +21,7 @@ that leaves the device is servo angles, to one ESP32 on your own WiFi.
 | **Platform** | Android (Flutter + Kotlin) |
 | **Tracking** | MediaPipe Hands, 21 landmarks, on-device |
 | **Speed** | ~25 fps on a Realme RMX2001 (Helio G90T) |
-| **Network** | Local only — one ESP32 on your WiFi. No cloud, no CDN, no WebView. |
+| **Network** | Local only — one ESP32, on your WiFi or its own hotspot. No cloud, no CDN, no WebView. |
 | **License** | [Noncommercial](LICENSE) — free to learn and teach with, paid for commercial use |
 
 ## What it does
@@ -46,8 +47,8 @@ readout, and the last angles are held when your hand leaves the frame.
 ## Driving the arm
 
 The desktop script wrote `"{channel},{angle};"` down a serial port. A phone has
-no serial port, so the same command string goes over the network to an ESP32 on
-the same WiFi, either way you like:
+no serial port, so the same command string goes over the network to an ESP32,
+either way you like:
 
 ```
 HTTP     GET http://<esp32-ip>/servo?cmd=1,115;2,95;3,108;4,60;5,120;
@@ -69,9 +70,16 @@ three seconds of silence rebuilds the socket with a backoff. HTTP needs none of
 that — every command carries its own timeout — which is why it is still the
 default and still worth choosing on a flaky network.
 
-A ready-to-flash receiver that serves both is in [esp32/](esp32/) — set your WiFi
-credentials and servo pins, flash, and type the IP it prints into the app's
-**Arm** screen.
+Two ready-to-flash receivers serve both:
+
+- [SAC-Firmware/](SAC-Firmware/) — PlatformIO. The ESP32 runs its own hotspot,
+  `SAC-Arm`, and is always at **192.168.4.1**, so there is no router to share
+  and no address to look up. Join the hotspot, type `192.168.4.1` into the app's
+  **Arm** screen. It receives commands but does not drive the servos yet; its
+  serial log is off unless built with `SAC_LOG=1`.
+- [esp32/](esp32/) — Arduino IDE. Joins your WiFi and drives the servos. Set
+  your WiFi credentials and servo pins, flash, and type the IP it prints into
+  the app's **Arm** screen.
 
 Sending is **off until you turn it on**, so the arm cannot move while you are
 still setting up. Commands are throttled and coalesced: tracking runs near 25 fps
@@ -178,7 +186,8 @@ hardware. Details, including why half resolution costs no accuracy, are in the
 | `lib/services/` | Camera and MediaPipe bridge, arm state, ESP32 client, settings. |
 | `lib/screens/` | Track, Control, Arm, Theme. |
 | `lib/widgets/` | Scrubbable nav bar, overlay painter, gradient slider. |
-| `esp32/` | Arduino sketch for the receiver, and its wiring notes. |
+| `esp32/` | Arduino sketch for the WiFi receiver that drives the servos, and its wiring notes. |
+| `SAC-Firmware/` | PlatformIO firmware: a fixed-address hotspot receiver, servo output still to come. |
 | `android/app/src/main/kotlin/.../MainActivity.kt` | MediaPipe bridge and the NV21 conversion. |
 | `android/app/build.gradle.kts` | MediaPipe dependency, `noCompress`, release config. |
 | `android/build.gradle.kts` | The AGP 9 fix for `camera_android_camerax`. |
@@ -205,6 +214,7 @@ someone else:
 
 - Acknowledgements from the ESP32, so the app can tell a delivered command from
   a servo that never moved
+- Servo output in `SAC-Firmware/`, which only receives commands so far
 - Servo smoothing — raw landmarks are jittery frame to frame
 - Calibration for the mapping constants, which are currently the Python's
 - Optional full-native CameraX pipeline to get past the 26 fps channel ceiling
