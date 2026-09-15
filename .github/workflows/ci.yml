@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      build: ${{ steps.version.outputs.build }}
       apk: ${{ steps.version.outputs.apk }}
+      signed: ${{ steps.signing.outputs.signed }}
     steps:
       - uses: actions/checkout@v5
 
@@ -40,7 +40,7 @@ jobs:
           test -n "$version" || { echo "::error::no x.y.z version in pubspec.yaml"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "build=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "apk=smart-arm-$version-build$GITHUB_RUN_NUMBER.apk" >> "$GITHUB_OUTPUT"
+          echo "apk=smart-arm-$version.apk" >> "$GITHUB_OUTPUT"
 
       # The model is not in the repo, and the Android build needs it in assets.
       - name: Fetch the hand landmarker model
@@ -49,6 +49,27 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+
+      # Android installs an update only if it carries the same signature as the
+      # installed app, so releases must all use one key. Without the secrets
+      # (forks, or before they are set up) the APK gets a throwaway debug key.
+      - name: Set up the release signing key
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No signing secrets, so this APK is signed with a throwaway debug key"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/release.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/key.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: Build the release APK
         run: |
@@ -74,8 +95,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       TAG: v${{ needs.build.outputs.version }}
-      BUILD: ${{ needs.build.outputs.build }}
       APK: ${{ needs.build.outputs.apk }}
+      SIGNED: ${{ needs.build.outputs.signed }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -87,7 +108,11 @@ jobs:
             echo "$TAG is already released. Bump the version in pubspec.yaml to publish a new one."
             exit 0
           fi
+          if [ "$SIGNED" != true ]; then
+            echo "::error::$TAG was signed with a throwaway debug key, which cannot update an installed app. Add the signing secrets described in CONTRIBUTING.md, then re-run this workflow."
+            exit 1
+          fi
           gh release create "$TAG" "$APK" \
             --target "$GITHUB_SHA" \
-            --title "$TAG (build $BUILD)" \
+            --title "$TAG" \
             --generate-notes
