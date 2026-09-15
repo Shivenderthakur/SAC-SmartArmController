@@ -192,6 +192,8 @@ hardware. Details, including why half resolution costs no accuracy, are in the
 | `android/app/build.gradle.kts` | MediaPipe dependency, `noCompress`, release config. |
 | `android/build.gradle.kts` | The AGP 9 fix for `camera_android_camerax`. |
 | `tools/fetch_model.sh` | Downloads the hand landmarker model. |
+| `assets/icon/app_icon.png` | Source art for the app icon (1254×1254, transparent). |
+| `tools/generate_icons.py` | Rebuilds every platform's icon from that source: `python3 tools/generate_icons.py`. |
 | `docs/ARCHITECTURE.md` | The frame pipeline and the ported maths, in detail. |
 | `docs/BUILD_NOTES.md` | Toolchain problems hit during the port, and their fixes. |
 
