@@ -83,7 +83,8 @@ The version lives in `pubspec.yaml` and nowhere else. CI builds every push to
 build number, so each APK's `versionCode` is higher than the last.
 
 When a push to `main` carries a version that has no tag yet, CI tags the commit
-`v<version>` and publishes a GitHub Release with the APK attached. To cut the
+`v<version>` and publishes a GitHub Release of that name with
+`smart-arm-<version>.apk` attached. To cut the
 next release, bump the version in the pull request that should ship it:
 
 ```yaml
@@ -93,9 +94,47 @@ version: 1.1.0+1     # the +1 is only for local builds; CI supplies the build nu
 A push that leaves the version alone still builds, and its APK is kept as a
 workflow artifact, but nothing is released.
 
-Release APKs are signed with the CI runner's throwaway debug key until a release
-keystore is set up, so installing a newer release over an older one needs the
-old one uninstalled first.
+### Signing
+
+Android installs an update only if it is signed with the same key as the app
+already on the phone. So every release is signed with one permanent key, held in
+the repository's Actions secrets, and CI refuses to publish a release without it.
+
+Create the key once, **outside the repository**, and keep the file and its
+password somewhere safe. Lose them and every install has to be removed before the
+next release will go on.
+
+```bash
+keytool -genkeypair -v -keystore ~/smart-arm-release.jks -keyalg RSA -keysize 2048 \
+  -validity 10000 -alias smartarm
+base64 -w0 ~/smart-arm-release.jks > ~/smart-arm-release.jks.b64
+```
+
+Then add four secrets under **Settings → Secrets and variables → Actions**:
+
+| secret | value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | the contents of `~/smart-arm-release.jks.b64` |
+| `ANDROID_KEYSTORE_PASSWORD` | the password you gave `keytool` |
+| `ANDROID_KEY_ALIAS` | `smartarm` |
+| `ANDROID_KEY_PASSWORD` | the same password — `keytool` keys share the keystore's |
+
+Builds without the key — pull requests, and local builds — fall back to the debug
+key. To sign a local release build, put the same values in `android/key.properties`,
+which is git-ignored:
+
+```properties
+storeFile=/home/you/smart-arm-release.jks
+storePassword=...
+keyAlias=smartarm
+keyPassword=...
+```
+
+Avoid backslashes in the password: `key.properties` reads them as escapes.
+
+Releases published before the key was set up were each signed with a different
+throwaway key, so moving from one of those to a signed release needs one last
+uninstall.
 
 ## Performance claims
 
