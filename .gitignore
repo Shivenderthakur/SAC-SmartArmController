@@ -53,3 +53,6 @@ android/app/src/main/assets/hand_landmarker.task
 # Design canvas exports - the source for the UI, but tooling output, not source
 Mobile app four screens design/
 Mobile app four screens design.zip
+
+# Local ESP32 hotspot credentials; see SAC-Firmware/include/secrets.example.h
+SAC-Firmware/include/secrets.h
