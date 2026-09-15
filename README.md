@@ -83,11 +83,12 @@ actually moved — nothing reads the arm's real position back.
 
 ## Build
 
-Needs the Flutter SDK and an Android toolchain.
+Needs the Flutter SDK (CI pins 3.47.4) and an Android toolchain. Ready-built
+APKs are attached to each [release](../../releases).
 
 ```bash
-git clone git@github.com:Shivenderthakur/SmartArm-Controller.git
-cd SmartArm-Controller
+git clone git@github.com:Shivenderthakur/SAC-SmartArmController.git
+cd SAC-SmartArmController
 
 ./tools/fetch_model.sh          # required — see below
 flutter pub get

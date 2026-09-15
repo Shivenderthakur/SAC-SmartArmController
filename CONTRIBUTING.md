@@ -60,12 +60,35 @@ flutter analyze          # must be clean
 flutter build apk --release
 ```
 
-CI runs both on every push, so anything that fails locally will fail there too.
+CI runs both on every push with Flutter **3.47.4**. Use the same version locally:
+a newer analyzer finds infos an older one did not, and `flutter analyze` fails
+on infos too.
 
 A release build compiling is **not** proof it works. This project has already
 shipped two bugs that built perfectly and failed only at run time — see
 [docs/BUILD_NOTES.md](docs/BUILD_NOTES.md). If you change anything on the frame
 path, install it and watch `adb logcat -s SmartArm` before you call it done.
+
+## Releases
+
+The version lives in `pubspec.yaml` and nowhere else. CI builds every push to
+`main` with that version as the version name and the workflow run number as the
+build number, so each APK's `versionCode` is higher than the last.
+
+When a push to `main` carries a version that has no tag yet, CI tags the commit
+`v<version>` and publishes a GitHub Release with the APK attached. To cut the
+next release, bump the version in the pull request that should ship it:
+
+```yaml
+version: 1.1.0+1     # the +1 is only for local builds; CI supplies the build number
+```
+
+A push that leaves the version alone still builds, and its APK is kept as a
+workflow artifact, but nothing is released.
+
+Release APKs are signed with the CI runner's throwaway debug key until a release
+keystore is set up, so installing a newer release over an older one needs the
+old one uninstalled first.
 
 ## Performance claims
 
