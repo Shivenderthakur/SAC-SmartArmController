@@ -2,8 +2,10 @@
 
 The phone does the vision; this just moves servos.
 
-For a board that runs its own hotspot at a fixed `192.168.4.1` instead of
-joining your WiFi, see [SAC-Firmware/](../SAC-Firmware/).
+For a board that runs its own hotspot at a fixed `192.168.4.1`, drives up to
+nine servos and takes its pin assignments from the app rather than from these
+`#define`s, see [SAC-Firmware/](../SAC-Firmware/). This sketch stays as it is:
+four servos, fixed pins, joins your home WiFi.
 
 ## Flashing
 

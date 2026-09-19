@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/appearance_screen.dart';
+import 'screens/board_screen.dart';
 import 'screens/connection_screen.dart';
 import 'screens/control_screen.dart';
 import 'screens/track_screen.dart';
 import 'services/app_settings.dart';
 import 'services/arm_controller.dart';
 import 'services/arm_link.dart';
+import 'services/joint_config.dart';
 import 'services/tracker.dart';
 import 'widgets/glass.dart';
 import 'widgets/slide_nav_bar.dart';
@@ -22,13 +24,15 @@ Future<void> main() async {
   // The bar floats over the content, so the content has to reach the edges.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final settings = await AppSettings.load();
-  runApp(SmartArmApp(settings: settings));
+  final joints = await JointConfig.load();
+  runApp(SmartArmApp(settings: settings, joints: joints));
 }
 
 class SmartArmApp extends StatelessWidget {
-  const SmartArmApp({super.key, required this.settings});
+  const SmartArmApp({super.key, required this.settings, required this.joints});
 
   final AppSettings settings;
+  final JointConfig joints;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +71,7 @@ class SmartArmApp extends StatelessWidget {
           themeMode: settings.themeMode,
           theme: theme(Brightness.light),
           darkTheme: theme(Brightness.dark),
-          home: HomeShell(settings: settings),
+          home: HomeShell(settings: settings, joints: joints),
         );
       },
     );
@@ -75,9 +79,10 @@ class SmartArmApp extends StatelessWidget {
 }
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.settings});
+  const HomeShell({super.key, required this.settings, required this.joints});
 
   final AppSettings settings;
+  final JointConfig joints;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -88,6 +93,7 @@ class _HomeShellState extends State<HomeShell>
   static const _destinations = [
     NavDestination(Icons.back_hand_outlined, 'Track'),
     NavDestination(Icons.tune, 'Control'),
+    NavDestination(Icons.developer_board_outlined, 'Board'),
     NavDestination(Icons.settings_input_antenna, 'Arm'),
     NavDestination(Icons.palette_outlined, 'Theme'),
   ];
@@ -98,6 +104,7 @@ class _HomeShellState extends State<HomeShell>
   static const _tints = [
     ScreenTint(Color(0xFFA855F7), Color(0xFFEC4899)),
     ScreenTint(Color(0xFFFB923C), Color(0xFFF43F5E)),
+    ScreenTint(Color(0xFF818CF8), Color(0xFF6366F1)),
     ScreenTint(Color(0xFF22D3EE), Color(0xFF3B82F6)),
     ScreenTint(Color(0xFF34D399), Color(0xFF14B8A6)),
   ];
@@ -114,12 +121,21 @@ class _HomeShellState extends State<HomeShell>
 
     _nav = SlideSelection(vsync: this, count: _destinations.length);
     _link = ArmLink();
-    _arm = ArmController(_link);
+    // The board keeps no map of its own, so the link asks for one every time it
+    // connects, and again whenever the board says it has none.
+    _link.mapProvider = () => widget.joints.pinMap;
+    _arm = ArmController(_link, widget.joints);
     _tracker = Tracker(_arm.fromHand);
 
     widget.settings.addListener(_pushLinkSettings);
+    widget.joints.addListener(_pushJointConfig);
+    _pushJointConfig();
     _pushLinkSettings();
     _tracker.start();
+  }
+
+  void _pushJointConfig() {
+    _link.mirrorClaw = widget.joints.mirrorClaw;
   }
 
   void _pushLinkSettings() {
@@ -135,6 +151,7 @@ class _HomeShellState extends State<HomeShell>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.settings.removeListener(_pushLinkSettings);
+    widget.joints.removeListener(_pushJointConfig);
     _nav.dispose();
     _tracker.dispose();
     _arm.dispose();
@@ -173,6 +190,7 @@ class _HomeShellState extends State<HomeShell>
         trailing: pill,
       ),
       ControlScreen(arm: _arm, trailing: pill),
+      BoardScreen(config: widget.joints, link: _link, trailing: pill),
       ConnectionScreen(
         settings: settings,
         link: _link,

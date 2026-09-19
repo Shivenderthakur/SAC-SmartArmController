@@ -238,57 +238,60 @@ class _Angles extends StatelessWidget {
 
     return ListenableBuilder(
       listenable: arm,
-      builder: (context, _) => Column(
-        children: [
-          for (var row = 0; row < 2; row++) ...[
-            if (row > 0) const SizedBox(height: 12),
-            Row(
-              children: [
-                for (var col = 0; col < 2; col++) ...[
-                  if (col > 0) const SizedBox(width: 12),
-                  Expanded(
-                    child: GlassCard(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
-                      radius: 20,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            servoNames[row * 2 + col].toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.1,
-                              color: context.glassMuted,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          // Two to a row, however many joints the arm has.
+          final width = (constraints.maxWidth - 12) / 2;
+
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (var i = 0; i < arm.config.channels; i++)
+                SizedBox(
+                  width: width,
+                  child: GlassCard(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
+                    radius: 20,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          arm.config.joints[i].name.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                            color: context.glassMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '${arm.angles[i]}',
+                              style: monoStyle(size: 26, colour: accent),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                '${arm.angles[row * 2 + col]}',
-                                style: monoStyle(size: 26, colour: accent),
+                            Text(
+                              '  deg',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.glassMuted,
                               ),
-                              Text(
-                                '  deg',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.glassMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ],
-            ),
-          ],
-        ],
+                ),
+            ],
+          );
+        },
       ),
     );
   }

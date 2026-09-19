@@ -51,14 +51,19 @@ no serial port, so the same command string goes over the network to an ESP32,
 either way you like:
 
 ```
-HTTP     GET http://<esp32-ip>/servo?cmd=1,115;2,95;3,108;4,60;5,120;
-Socket   1,115;2,95;3,108;4,60;5,120;\n     down one open connection to :3333
+HTTP     GET http://<esp32-ip>/servo?cmd=1,115;2,95;3,108;4,60;
+Socket   1,115;2,95;3,108;4,60;\n          down one open connection to :3333
+Pins     M,1,16;M,2,17;M,3,18;M,4,19;\n    which GPIO each channel drives
 ```
 
 The wire format is deliberately unchanged, so a sketch that drove the arm from
-serial needs almost no rewriting. Channel 5 mirrors the claw (`180 - angle`) for
-a gripper on two opposed servos, exactly as the desktop script did; a receiver
-with one gripper servo ignores it.
+serial needs almost no rewriting. Up to nine channels can be driven — eight
+joints and a gripper — and which GPIO each one runs on is assigned on the app's
+**Board** screen and pushed to the board on every connect.
+
+On an arm of four joints or fewer, channel 5 carries the claw mirrored
+(`180 - angle`), for a gripper on two opposed servos, exactly as the desktop
+script did. A fifth joint takes that channel back and the mirror stops.
 
 The socket is quicker — no handshake and no headers per command, so an angle
 lands in a millisecond or two rather than twenty or forty. What it costs is that
@@ -75,8 +80,8 @@ Two ready-to-flash receivers serve both:
 - [SAC-Firmware/](SAC-Firmware/) — PlatformIO. The ESP32 runs its own hotspot,
   `SAC-Arm`, and is always at **192.168.4.1**, so there is no router to share
   and no address to look up. Join the hotspot, type `192.168.4.1` into the app's
-  **Arm** screen. It receives commands but does not drive the servos yet; its
-  serial log is off unless built with `SAC_LOG=1`.
+  **Arm** screen. It drives up to nine servos, on the pins assigned from the
+  **Board** screen; its serial log is off unless built with `SAC_LOG=1`.
 - [esp32/](esp32/) — Arduino IDE. Joins your WiFi and drives the servos. Set
   your WiFi credentials and servo pins, flash, and type the IP it prints into
   the app's **Arm** screen.
@@ -123,6 +128,7 @@ with a click of haptic feedback at each boundary.
 | --- | --- |
 | **Track** | Camera, hand skeleton, live angles, frame rate. Flip camera, mirror, and an Auto/Manual switch. |
 | **Control** | Drive each servo by hand with sliders, and see the exact command string being sent. |
+| **Board** | The ESP32 drawing. Drag a joint onto the pin it is wired to, and set how many joints the arm has. |
 | **Arm** | ESP32 address, connection test, the send switch, and the rate limit. |
 | **Theme** | Light, dark or follow the system; five accents, applied instantly. |
 
@@ -187,7 +193,8 @@ hardware. Details, including why half resolution costs no accuracy, are in the
 | `lib/screens/` | Track, Control, Arm, Theme. |
 | `lib/widgets/` | Scrubbable nav bar, overlay painter, gradient slider. |
 | `esp32/` | Arduino sketch for the WiFi receiver that drives the servos, and its wiring notes. |
-| `SAC-Firmware/` | PlatformIO firmware: a fixed-address hotspot receiver, servo output still to come. |
+| `SAC-Firmware/` | PlatformIO firmware: a fixed-address hotspot driving up to nine servos. |
+| `assets/board/` | The Wokwi ESP32 drawing and pin table behind the Board screen. |
 | `android/app/src/main/kotlin/.../MainActivity.kt` | MediaPipe bridge and the NV21 conversion. |
 | `android/app/build.gradle.kts` | MediaPipe dependency, `noCompress`, release config. |
 | `android/build.gradle.kts` | The AGP 9 fix for `camera_android_camerax`. |
@@ -216,7 +223,7 @@ someone else:
 
 - Acknowledgements from the ESP32, so the app can tell a delivered command from
   a servo that never moved
-- Servo output in `SAC-Firmware/`, which only receives commands so far
+- Recorded step sequences: name a pose, reorder the steps, play them back
 - Servo smoothing — raw landmarks are jittery frame to frame
 - Calibration for the mapping constants, which are currently the Python's
 - Optional full-native CameraX pipeline to get past the 26 fps channel ceiling

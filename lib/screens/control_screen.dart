@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/hand.dart';
 import '../services/arm_controller.dart';
 import '../services/arm_link.dart';
 import '../widgets/glass.dart';
@@ -68,7 +67,7 @@ class ControlScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          for (var i = 0; i < 4; i++) ...[
+          for (var i = 0; i < arm.config.channels; i++) ...[
             _Channel(arm: arm, index: i),
             const SizedBox(height: 12),
           ],
@@ -97,20 +96,22 @@ class ControlScreen extends StatelessWidget {
           const GlassLabel('Command sent to the arm'),
           GlassWell(
             child: SelectableText(
-              ArmLink.command(arm.angles),
+              ArmLink.command(arm.angles, mirrorClaw: arm.config.mirrorClaw),
               style: monoStyle(size: 13).copyWith(height: 1.4),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Channel 5 mirrors the claw, exactly as the desktop script did for '
-            'the second gripper servo.',
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.4,
-              color: context.glassMuted,
+          if (arm.config.mirrorClaw) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Channel 5 mirrors the claw, for a gripper built from two opposed '
+              'servos. A fifth joint takes that channel back.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: context.glassMuted,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -125,7 +126,8 @@ class _Channel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (min, max) = servoRanges[index];
+    final joint = arm.config.joints[index];
+    final (min, max) = (joint.min, joint.max);
     final accent = Theme.of(context).colorScheme.primary;
 
     return GlassCard(
@@ -141,7 +143,9 @@ class _Channel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      servoNames[index],
+                      joint.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
