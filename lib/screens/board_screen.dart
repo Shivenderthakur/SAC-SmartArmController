@@ -19,18 +19,24 @@ class BoardScreen extends StatefulWidget {
     required this.config,
     required this.link,
     this.trailing,
+    this.layout,
   });
 
   final JointConfig config;
   final ArmLink link;
   final Widget? trailing;
 
+  /// An already-parsed board, for tests: reading the asset is real I/O, which a
+  /// widget test only runs inside `runAsync`.
+  final BoardLayout? layout;
+
   @override
   State<BoardScreen> createState() => _BoardScreenState();
 }
 
 class _BoardScreenState extends State<BoardScreen> {
-  late final Future<BoardLayout> _layout = BoardLayout.load();
+  late final Future<BoardLayout> _layout =
+      widget.layout == null ? BoardLayout.load() : Future.value(widget.layout);
 
   /// The joint waiting for a pin, for people who would rather tap twice than
   /// drag.
@@ -81,6 +87,19 @@ class _BoardScreenState extends State<BoardScreen> {
             FutureBuilder<BoardLayout>(
               future: _layout,
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return GlassWell(
+                    child: Text(
+                      'The board drawing could not be read. Pins can still be '
+                      'assigned from the Control screen.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: context.glassMuted,
+                      ),
+                    ),
+                  );
+                }
                 final layout = snapshot.data;
                 if (layout == null) {
                   return const SizedBox(
@@ -477,7 +496,7 @@ class _PinBlock extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('D${pin.label}', style: monoStyle(size: 11, colour: context.glassMuted)),
+                Text('GP${pin.label}', style: monoStyle(size: 11, colour: context.glassMuted)),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(

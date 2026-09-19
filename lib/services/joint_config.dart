@@ -40,8 +40,9 @@ class JointConfig extends ChangeNotifier {
           .map((e) => Joint.fromJson(e as Map<String, Object?>))
           .toList();
       return list.isEmpty ? List<Joint>.of(defaultJoints) : list;
-    } on FormatException {
-      // A half-written or hand-edited entry is not worth failing a launch over.
+    } catch (_) {
+      // Anything unreadable - half-written, hand-edited, or from a future
+      // version - is not worth failing a launch over.
       return List<Joint>.of(defaultJoints);
     }
   }
