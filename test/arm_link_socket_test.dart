@@ -13,9 +13,14 @@ class FakeArm {
 
   final ServerSocket _server;
   final lines = <String>[];
+  final maps = <String>[];
   final _connections = <Socket>[];
 
   bool answering = true;
+
+  /// Whether the board is holding a pin map. Clearing it stands in for a board
+  /// that rebooted while the socket stayed up.
+  bool mapped = false;
 
   static Future<FakeArm> start() async {
     final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -28,7 +33,19 @@ class FakeArm {
           .transform(const LineSplitter())
           .listen((line) {
         arm.lines.add(line);
-        if (arm.answering) socket.write('ok;\n');
+        if (!arm.answering) return;
+
+        // The firmware's three replies. The link reads them, so the fake has to
+        // mean them: the heartbeat carries whether a map is still held.
+        if (line.startsWith('M')) {
+          arm.maps.add(line);
+          arm.mapped = true;
+          socket.write('map,f;\n');
+        } else if (line == '?;') {
+          socket.write(arm.mapped ? 'ok,1;\n' : 'ok,0;\n');
+        } else {
+          socket.write('ok;\n');
+        }
       }, onError: (_) {}, onDone: () {});
     });
     return arm;
@@ -86,12 +103,54 @@ void main() {
 
     expect(await waitFor(() => arm.lines.isNotEmpty), isTrue,
         reason: 'nothing reached the arm');
-    // The wire format the desktop script wrote to the serial port, unchanged,
-    // with the claw mirrored onto channel 5.
-    expect(arm.lines.first, '1,115;2,95;3,108;4,60;5,120;');
+    // The wire format the desktop script wrote to the serial port, unchanged.
+    expect(arm.lines.first, '1,115;2,95;3,108;4,60;');
     expect(link.sent, 1);
     expect(link.state, LinkState.ok);
     expect(link.reconnects, 0);
+  });
+
+  test('mirrors the claw onto channel 5 only when asked', () {
+    expect(ArmLink.command([115, 95, 108, 60]), '1,115;2,95;3,108;4,60;');
+    expect(
+      ArmLink.command([115, 95, 108, 60], mirrorClaw: true),
+      '1,115;2,95;3,108;4,60;5,120;',
+    );
+    // A fifth joint owns channel 5. Mirroring the claw onto it would overwrite
+    // that joint on every command, so the mirror stops at four.
+    expect(
+      ArmLink.command([10, 20, 30, 40, 50], mirrorClaw: true),
+      '1,10;2,20;3,30;4,40;5,50;',
+    );
+  });
+
+  test('writes an unassigned joint as -1', () {
+    expect(ArmLink.mapLine([16, -1, 18]), 'M,1,16;M,2,-1;M,3,18;');
+  });
+
+  test('pushes the pin map on connect, before any angle', () async {
+    link.mapProvider = () => [16, 17, 18, 19];
+    connect();
+
+    expect(await waitFor(() => arm.maps.isNotEmpty), isTrue,
+        reason: 'the board was never told which pins to drive');
+    expect(arm.maps.first, 'M,1,16;M,2,17;M,3,18;M,4,19;');
+    expect(arm.lines.first, arm.maps.first,
+        reason: 'an angle reached a board that had no pins yet');
+  });
+
+  test('pushes the map again when the board says it has none', () async {
+    link.mapProvider = () => [16, 17];
+    connect();
+    expect(await waitFor(() => arm.maps.length == 1), isTrue,
+        reason: 'no map on connect');
+
+    // What a rebooted board looks like from here: the socket survived, so
+    // nothing fails, and only the heartbeat's "ok,0;" gives it away.
+    arm.mapped = false;
+
+    expect(await waitFor(() => arm.maps.length >= 2), isTrue,
+        reason: 'the arm was left wired to nothing');
   });
 
   test('holds the connection open across many commands', () async {

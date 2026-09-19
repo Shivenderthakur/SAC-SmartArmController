@@ -18,15 +18,10 @@ const palmSizeMin = 0.1, palmSizeMax = 0.3;
 const clawOpenAngle = 60, clawCloseAngle = 0;
 const fistThreshold = 7.0;
 
-/// The four channels, in the order the arm expects them.
-const servoNames = ['X (base)', 'Y (lift)', 'Z (reach)', 'Claw'];
-const servoRanges = [
-  (xMin, xMax),
-  (yMin, yMax),
-  (zMin, zMax),
-  (clawCloseAngle, clawOpenAngle),
-];
-const servoRest = [xMid, yMid, zMid, clawOpenAngle];
+// Tracking always yields four values in this order - base, lift, reach, claw -
+// and never more. Which joints they drive is the job of the joint config in
+// models/joint.dart, so an arm can have nine servos and still be tracked on the
+// three the camera can actually measure.
 
 double clamp(double n, double minn, double maxn) =>
     math.max(math.min(maxn, n), minn);

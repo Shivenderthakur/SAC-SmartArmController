@@ -57,6 +57,7 @@ class ArmLink extends ChangeNotifier {
   List<int>? _pending;
 
   Socket? _socket;
+  String _replies = '';
   bool _connecting = false;
   Timer? _beat;
   Timer? _retry;
@@ -118,14 +119,63 @@ class ArmLink extends ChangeNotifier {
   bool get _wantsSocket =>
       _enabled && _transport == ArmTransport.tcp && _host.isNotEmpty;
 
-  static String command(List<int> angles) {
+  /// [mirrorClaw] appends channel 5 as the opposite of channel 4, for a gripper
+  /// built from two opposed servos. It is only safe on an arm of four joints or
+  /// fewer: past that, channel 5 is a real servo and its own mirror would
+  /// overwrite it on every command.
+  static String command(List<int> angles, {bool mirrorClaw = false}) {
     final b = StringBuffer();
     for (var i = 0; i < angles.length; i++) {
       b.write('${i + 1},${angles[i]};');
     }
-    // The claw's second servo runs opposite the first.
-    if (angles.length >= 4) b.write('5,${180 - angles[3]};');
+    if (mirrorClaw && angles.length == 4) b.write('5,${180 - angles[3]};');
     return b.toString();
+  }
+
+  /// `M,<channel>,<gpio>;` per channel, -1 for a joint with no pin. The board
+  /// takes the whole line or none of it.
+  static String mapLine(List<int> pins) {
+    final b = StringBuffer();
+    for (var i = 0; i < pins.length; i++) {
+      b.write('M,${i + 1},${pins[i]};');
+    }
+    return b.toString();
+  }
+
+  /// Where the pin map comes from. The board keeps it in RAM only, so the link
+  /// pushes it on every connect and again whenever the board says it has none.
+  List<int> Function()? mapProvider;
+
+  /// Whether to mirror the claw onto channel 5 — set from the joint config.
+  bool mirrorClaw = false;
+
+  /// The channels the board reported as attached, as a bitmask, or null before
+  /// it has answered.
+  int? attachedMask;
+
+  /// Sent outside the coalescing queue in [send]: a dropped angle is replaced by
+  /// the next frame, but a dropped map leaves the arm wired to nothing.
+  void pushMap() {
+    final pins = mapProvider?.call();
+    if (pins == null || pins.isEmpty) return;
+
+    if (_transport == ArmTransport.tcp) {
+      _writeLine(mapLine(pins));
+    } else {
+      unawaited(_sendMapOverHttp(mapLine(pins)));
+    }
+  }
+
+  Future<void> _sendMapOverHttp(String line) async {
+    try {
+      final request = await _client.getUrl(_uri(line)).timeout(
+            const Duration(seconds: 2),
+          );
+      final response = await request.close().timeout(const Duration(seconds: 2));
+      await response.drain<void>();
+    } catch (_) {
+      // The next command carries the board's mask, which re-triggers this.
+    }
   }
 
   /// Splits `192.168.1.50:3333` — and tolerates a pasted `http://…/` URL,
@@ -201,6 +251,9 @@ class ArmLink extends ChangeNotifier {
       );
       _beat ??= Timer.periodic(_heartbeatEvery, (_) => _tick());
 
+      // Before any angle: a board that rebooted is holding no map at all.
+      pushMap();
+
       state = LinkState.ok;
       message = 'socket open to $host:$port';
     } catch (e) {
@@ -214,11 +267,30 @@ class ArmLink extends ChangeNotifier {
     }
   }
 
-  /// Anything at all coming back is proof of life.
-  void _heard(List<int> _) {
+  /// Anything at all coming back is proof of life. The content matters too: the
+  /// board answers the heartbeat with `ok,0;` while it holds no pin map, which
+  /// is the only sign a phone gets that the board rebooted under a socket that
+  /// survived.
+  void _heard(List<int> data) {
     if (_disposed) return;
     _lastHeard = DateTime.now();
     if (!(_probe?.isCompleted ?? true)) _probe!.complete();
+
+    _replies += String.fromCharCodes(data);
+    while (_replies.contains('\n')) {
+      final cut = _replies.indexOf('\n');
+      final line = _replies.substring(0, cut).trim();
+      _replies = _replies.substring(cut + 1);
+      if (line.isEmpty) continue;
+
+      if (line.startsWith('ok,0')) {
+        pushMap();
+      } else if (line.startsWith('map,')) {
+        attachedMask =
+            int.tryParse(line.substring(4).replaceAll(';', ''), radix: 16);
+      }
+    }
+    if (_replies.length > 256) _replies = '';
 
     final at = _awaiting;
     if (at == null) return;
@@ -258,7 +330,7 @@ class ArmLink extends ChangeNotifier {
 
     _inFlight = true;
     try {
-      socket.write('${command(angles)}\n');
+      socket.write('${command(angles, mirrorClaw: mirrorClaw)}\n');
       // Gate the next command on this one actually leaving. `Socket.add` will
       // otherwise buffer in memory without complaint, and a backlog of stale
       // angles is worse than no angles at all.
@@ -334,7 +406,7 @@ class ArmLink extends ChangeNotifier {
 
     try {
       final request = await _client
-          .getUrl(_uri(command(angles)))
+          .getUrl(_uri(command(angles, mirrorClaw: mirrorClaw)))
           .timeout(const Duration(seconds: 2));
       final response = await request.close().timeout(const Duration(seconds: 2));
       await response.drain<void>();
@@ -408,7 +480,8 @@ class ArmLink extends ChangeNotifier {
     final started = DateTime.now();
     try {
       final request = await _client
-          .getUrl(_uri(command(const [90, 90, 90, 60])))
+          .getUrl(_uri(command(mapProvider?.call().map((_) => 90).toList() ??
+              const [90, 90, 90, 60])))
           .timeout(const Duration(seconds: 3));
       final response = await request.close().timeout(const Duration(seconds: 3));
       await response.drain<void>();
